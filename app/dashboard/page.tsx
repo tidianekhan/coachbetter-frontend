@@ -15,13 +15,6 @@ const COMPETENCIES = [
   { value: 'evaluation', label: 'Evaluation' },
 ]
 
-const LEVELS = [
-  { value: 'foundation', label: 'Foundation' },
-  { value: 'practitioner', label: 'Practitioner' },
-  { value: 'senior_practitioner', label: 'Senior Practitioner' },
-  { value: 'master_practitioner', label: 'Master Practitioner' },
-]
-
 type Tab = 'session' | 'reflection'
 type SessionState = 'idle' | 'uploading' | 'processing' | 'complete' | 'failed'
 
@@ -29,9 +22,8 @@ export default function Dashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [tab, setTab] = useState<Tab>('session')
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [dragging, setDragging] = useState(false)
-  const [studentLevel, setStudentLevel] = useState('practitioner')
   const [email, setEmail] = useState('')
 
   const [sessionState, setSessionState] = useState<SessionState>('idle')
@@ -40,6 +32,7 @@ export default function Dashboard() {
 
   const [competency, setCompetency] = useState('building_the_relationship')
   const [reflectionText, setReflectionText] = useState('')
+  const [candidateName, setCandidateName] = useState('')
   const [reflectionLoading, setReflectionLoading] = useState(false)
   const [reflectionReport, setReflectionReport] = useState<string | null>(null)
   const [reflectionError, setReflectionError] = useState('')
@@ -52,19 +45,18 @@ export default function Dashboard() {
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     setDragging(false)
-    const dropped = e.dataTransfer.files[0]
-    if (dropped) setFile(dropped)
+    const dropped = Array.from(e.dataTransfer.files)
+    if (dropped.length > 0) setFiles(prev => [...prev, ...dropped])
   }
 
   async function handleSessionUpload() {
-    if (!file) return
+    if (files.length === 0) return
     setSessionState('uploading')
     setSessionError('')
 
     try {
       const formData = new FormData()
-      formData.append('file', file)
-      formData.append('student_level', studentLevel)
+      files.forEach(f => formData.append('files', f))
       if (email) formData.append('email', email)
 
       const { session_id } = await uploadSession(formData)
@@ -98,8 +90,8 @@ export default function Dashboard() {
       const result = await evaluateReflection({
         competency,
         reflection_text: reflectionText,
-        student_level: studentLevel,
         email: email || undefined,
+        candidate_name: candidateName || undefined,
       })
       setReflectionReport(result.report_url)
     } catch (e: unknown) {
@@ -151,29 +143,15 @@ export default function Dashboard() {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Student level</label>
-            <select
-              value={studentLevel}
-              onChange={e => setStudentLevel(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900"
-            >
-              {LEVELS.map(l => (
-                <option key={l.value} value={l.value}>{l.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Email (for notification)</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900"
-            />
-          </div>
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-gray-600 mb-1">Email (for notification)</label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900"
+          />
         </div>
 
         {tab === 'session' && (
@@ -186,7 +164,7 @@ export default function Dashboard() {
               className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all mb-4 ${
                 dragging
                   ? 'border-[#2d6a4f] bg-[#d8f3dc]'
-                  : file
+                  : files.length > 0
                   ? 'border-[#2d6a4f] bg-[#f0faf2]'
                   : 'border-[#2d6a4f]/40 bg-[#f0faf2]/40 hover:bg-[#f0faf2]'
               }`}
@@ -195,17 +173,25 @@ export default function Dashboard() {
                 ref={fileInputRef}
                 type="file"
                 accept=".mp4,.mov,.mp3,.m4a,.wav"
+                multiple
                 className="hidden"
-                onChange={e => e.target.files?.[0] && setFile(e.target.files[0])}
+                onChange={e => {
+                  if (e.target.files) setFiles(prev => [...prev, ...Array.from(e.target.files!)])
+                }}
               />
               <div className="text-3xl mb-3">🎬</div>
-              {file ? (
-                <p className="text-sm font-medium text-[#2d6a4f]">{file.name}</p>
+              {files.length > 0 ? (
+                <div>
+                  {files.map((f, i) => (
+                    <p key={i} className="text-sm font-medium text-[#2d6a4f]">{f.name}</p>
+                  ))}
+                  <p className="text-xs text-gray-400 mt-2">Click to add more files</p>
+                </div>
               ) : (
                 <>
                   <p className="text-sm font-medium text-gray-700">Drop your session video here</p>
                   <p className="text-xs text-gray-400 mt-1">or click to browse files</p>
-                  <p className="text-xs text-gray-400 mt-2">.mp4 · .mov · .mp3 · .m4a · .wav · Max 5 GB</p>
+                  <p className="text-xs text-gray-400 mt-2">.mp4 · .mov · .mp3 · .m4a · .wav · Multiple files supported</p>
                 </>
               )}
             </div>
@@ -213,7 +199,7 @@ export default function Dashboard() {
             {(sessionState === 'idle' || sessionState === 'failed') && (
               <button
                 onClick={handleSessionUpload}
-                disabled={!file}
+                disabled={files.length === 0}
                 className="w-full bg-gray-800 text-white rounded-xl py-3 text-sm font-medium hover:bg-gray-900 disabled:opacity-40"
               >
                 Analyse session →
@@ -254,17 +240,29 @@ export default function Dashboard() {
 
         {tab === 'reflection' && (
           <div>
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Competency</label>
-              <select
-                value={competency}
-                onChange={e => setCompetency(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900"
-              >
-                {COMPETENCIES.map(c => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Competency</label>
+                <select
+                  value={competency}
+                  onChange={e => setCompetency(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900"
+                >
+                  {COMPETENCIES.map(c => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Candidate name (optional)</label>
+                <input
+                  type="text"
+                  value={candidateName}
+                  onChange={e => setCandidateName(e.target.value)}
+                  placeholder="e.g. Jan"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900"
+                />
+              </div>
             </div>
 
             <div className="mb-4">

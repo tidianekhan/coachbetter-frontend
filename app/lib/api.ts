@@ -13,8 +13,8 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 export async function evaluateReflection(payload: {
   competency: string
   reflection_text: string
-  student_level: string
   email?: string
+  candidate_name?: string
 }) {
   const headers = await getAuthHeaders()
   const res = await fetch(`${API_URL}/reflections/evaluate`, {
