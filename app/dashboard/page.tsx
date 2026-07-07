@@ -218,9 +218,17 @@ export default function Dashboard() {
             )}
 
             {sessionState === 'uploading' && (
-              <div className="w-full bg-gray-100 rounded-xl py-3 text-sm text-center text-gray-500">
-                {uploadProgress || 'Uploading...'}
-              </div>
+                <div className="space-y-3">
+                    <div className="w-full bg-gray-100 rounded-xl py-3 text-sm text-center text-gray-500">
+                        {uploadProgress || 'Uploading...'}
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                        <div className="bg-[#2d6a4f] h-1.5 rounded-full animate-pulse" style={{ width: '30%' }} />
+                    </div>
+                    <p className="text-xs text-gray-400 text-center">
+                        Uploading your file directly to secure storage...
+                </p>
+                </div>
             )}
 
             {sessionState === 'processing' && (
