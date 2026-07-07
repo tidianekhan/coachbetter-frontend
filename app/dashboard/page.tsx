@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { supabase } from '@/app/lib/supabase'
-import { uploadSession, getSessionStatus, evaluateReflection } from '@/app/lib/api'
+import { uploadFilesToSupabase, createSession, getSessionStatus, evaluateReflection } from '@/app/lib/api'
 
 const COMPETENCIES = [
   { value: 'understanding_self', label: 'Understanding Self' },
@@ -29,6 +29,7 @@ export default function Dashboard() {
   const [sessionState, setSessionState] = useState<SessionState>('idle')
   const [reportUrl, setReportUrl] = useState<string | null>(null)
   const [sessionError, setSessionError] = useState('')
+  const [uploadProgress, setUploadProgress] = useState<string>('')
 
   const [competency, setCompetency] = useState('building_the_relationship')
   const [reflectionText, setReflectionText] = useState('')
@@ -53,14 +54,23 @@ export default function Dashboard() {
     if (files.length === 0) return
     setSessionState('uploading')
     setSessionError('')
+    setUploadProgress('Uploading files...')
 
     try {
-      const formData = new FormData()
-      files.forEach(f => formData.append('files', f))
-      if (email) formData.append('email', email)
+      const sessionId = crypto.randomUUID()
 
-      const { session_id } = await uploadSession(formData)
+      // Upload directly to Supabase Storage — bypasses Railway size limit
+      const filePaths = await uploadFilesToSupabase(files, sessionId)
+      setUploadProgress('Files uploaded. Starting analysis...')
+
+      // Tell backend to process those paths
+      const { session_id } = await createSession({
+        file_paths: filePaths,
+        email: email || undefined,
+      })
+
       setSessionState('processing')
+      setUploadProgress('')
 
       const poll = setInterval(async () => {
         const status = await getSessionStatus(session_id)
@@ -77,6 +87,7 @@ export default function Dashboard() {
     } catch (e: unknown) {
       setSessionError(e instanceof Error ? e.message : 'Upload failed')
       setSessionState('failed')
+      setUploadProgress('')
     }
   }
 
@@ -208,18 +219,27 @@ export default function Dashboard() {
 
             {sessionState === 'uploading' && (
               <div className="w-full bg-gray-100 rounded-xl py-3 text-sm text-center text-gray-500">
-                Uploading...
+                {uploadProgress || 'Uploading...'}
               </div>
             )}
 
             {sessionState === 'processing' && (
-              <div className="w-full bg-gray-100 rounded-xl py-3 text-sm text-center text-gray-500">
-                Processing — this takes a few minutes...
+              <div className="space-y-3">
+                <div className="w-full bg-gray-100 rounded-xl py-3 text-sm text-center text-gray-500">
+                  Processing — this takes 15–30 minutes...
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-1.5">
+                  <div className="bg-[#2d6a4f] h-1.5 rounded-full animate-pulse" style={{ width: '60%' }} />
+                </div>
+                <p className="text-xs text-gray-400 text-center">
+                  Transcribing and evaluating your session against all 8 EMCC competencies.
+                  {email && " You'll be notified by email when your report is ready."}
+                </p>
               </div>
             )}
 
             {sessionState === 'complete' && reportUrl && (
-            <a  
+            <a
                 href={reportUrl}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -230,11 +250,6 @@ export default function Dashboard() {
             )}
 
             {sessionError && <p className="text-sm text-red-500 mt-2">{sessionError}</p>}
-
-            <p className="text-xs text-gray-400 text-center mt-4">
-              Analysis typically takes <strong className="text-gray-600">15–30 minutes</strong> depending on session length.
-              {email && " You'll be notified when your report is ready."}
-            </p>
           </div>
         )}
 
@@ -285,7 +300,7 @@ export default function Dashboard() {
             </button>
 
             {reflectionReport && (
-            <a  
+             <a 
                 href={reflectionReport}
                 target="_blank"
                 rel="noopener noreferrer"
