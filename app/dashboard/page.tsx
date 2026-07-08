@@ -4,17 +4,6 @@ import { useState, useRef } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import { uploadFilesToSupabase, createSession, getSessionStatus, evaluateReflection } from '@/app/lib/api'
 
-const COMPETENCIES = [
-  { value: 'understanding_self', label: 'Understanding Self' },
-  { value: 'commitment_to_self_development', label: 'Commitment to Self-Development' },
-  { value: 'managing_the_contract', label: 'Managing the Contract' },
-  { value: 'building_the_relationship', label: 'Building the Relationship' },
-  { value: 'enabling_insight_and_learning', label: 'Enabling Insight and Learning' },
-  { value: 'outcome_and_action_orientation', label: 'Outcome and Action Orientation' },
-  { value: 'use_of_models_and_techniques', label: 'Use of Models and Techniques' },
-  { value: 'evaluation', label: 'Evaluation' },
-]
-
 type Tab = 'session' | 'reflection'
 type SessionState = 'idle' | 'uploading' | 'processing' | 'complete' | 'failed'
 
@@ -31,7 +20,6 @@ export default function Dashboard() {
   const [sessionError, setSessionError] = useState('')
   const [uploadProgress, setUploadProgress] = useState<string>('')
 
-  const [competency, setCompetency] = useState('building_the_relationship')
   const [reflectionText, setReflectionText] = useState('')
   const [candidateName, setCandidateName] = useState('')
   const [reflectionLoading, setReflectionLoading] = useState(false)
@@ -58,12 +46,9 @@ export default function Dashboard() {
 
     try {
       const sessionId = crypto.randomUUID()
-
-      // Upload directly to Supabase Storage — bypasses Railway size limit
       const filePaths = await uploadFilesToSupabase(files, sessionId)
       setUploadProgress('Files uploaded. Starting analysis...')
 
-      // Tell backend to process those paths
       const { session_id } = await createSession({
         file_paths: filePaths,
         email: email || undefined,
@@ -99,7 +84,6 @@ export default function Dashboard() {
 
     try {
       const result = await evaluateReflection({
-        competency,
         reflection_text: reflectionText,
         email: email || undefined,
         candidate_name: candidateName || undefined,
@@ -183,7 +167,7 @@ export default function Dashboard() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".mp4,.mov,.mp3,.m4a,.wav"
+                accept=".mp3,.m4a,.wav,.mp4,.mov"
                 multiple
                 className="hidden"
                 onChange={e => {
@@ -200,11 +184,16 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <>
-                  <p className="text-sm font-medium text-gray-700">Drop your session video here</p>
+                  <p className="text-sm font-medium text-gray-700">Drop your session recording here</p>
                   <p className="text-xs text-gray-400 mt-1">or click to browse files</p>
-                  <p className="text-xs text-gray-400 mt-2">.mp4 · .mov · .mp3 · .m4a · .wav · Multiple files supported</p>
+                  <p className="text-xs text-gray-400 mt-2">.mp3 · .m4a · .wav · Audio files recommended</p>
+                  <p className="text-xs text-gray-300 mt-1">Video files (.mp4, .mov) also supported</p>
                 </>
               )}
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 text-xs text-amber-800">
+              <strong>Upload audio, not video.</strong> Download the audio file (.m4a or .mp3) from Zoom or Teams — not the video recording. Audio files are typically 50–100MB for a 1-hour session.
             </div>
 
             {(sessionState === 'idle' || sessionState === 'failed') && (
@@ -218,17 +207,17 @@ export default function Dashboard() {
             )}
 
             {sessionState === 'uploading' && (
-                <div className="space-y-3">
-                    <div className="w-full bg-gray-100 rounded-xl py-3 text-sm text-center text-gray-500">
-                        {uploadProgress || 'Uploading...'}
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-1.5">
-                        <div className="bg-[#2d6a4f] h-1.5 rounded-full animate-pulse" style={{ width: '30%' }} />
-                    </div>
-                    <p className="text-xs text-gray-400 text-center">
-                        Uploading your file directly to secure storage...
-                </p>
+              <div className="space-y-3">
+                <div className="w-full bg-gray-100 rounded-xl py-3 text-sm text-center text-gray-500">
+                  {uploadProgress || 'Uploading...'}
                 </div>
+                <div className="w-full bg-gray-200 rounded-full h-1.5">
+                  <div className="bg-[#2d6a4f] h-1.5 rounded-full animate-pulse" style={{ width: '30%' }} />
+                </div>
+                <p className="text-xs text-gray-400 text-center">
+                  Uploading your file directly to secure storage...
+                </p>
+              </div>
             )}
 
             {sessionState === 'processing' && (
@@ -247,7 +236,7 @@ export default function Dashboard() {
             )}
 
             {sessionState === 'complete' && reportUrl && (
-            <a
+            <a  
                 href={reportUrl}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -263,71 +252,57 @@ export default function Dashboard() {
 
         {tab === 'reflection' && (
           <div>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Competency</label>
-                <select
-                  value={competency}
-                  onChange={e => setCompetency(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900"
-                >
-                  {COMPETENCIES.map(c => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Candidate name (optional)</label>
-                <input
-                  type="text"
-                  value={candidateName}
-                  onChange={e => setCandidateName(e.target.value)}
-                  placeholder="e.g. Jan"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900"
-                />
-              </div>
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Candidate name (optional)</label>
+              <input
+                type="text"
+                value={candidateName}
+                onChange={e => setCandidateName(e.target.value)}
+                placeholder="e.g. Jan"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900"
+              />
             </div>
 
             <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Your reflection</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Reflection text</label>
               <textarea
                 value={reflectionText}
                 onChange={e => setReflectionText(e.target.value)}
-                rows={8}
-                placeholder="Write your reflection here..."
+                rows={10}
+                placeholder="Paste the reflection here. The system will automatically detect which competencies are being addressed."
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 resize-none"
               />
             </div>
 
             <button
-                onClick={handleReflectionSubmit}
-                disabled={reflectionLoading || !reflectionText.trim()}
-                className="w-full bg-gray-800 text-white rounded-xl py-3 text-sm font-medium hover:bg-gray-900 disabled:opacity-40"
+              onClick={handleReflectionSubmit}
+              disabled={reflectionLoading || !reflectionText.trim()}
+              className="w-full bg-gray-800 text-white rounded-xl py-3 text-sm font-medium hover:bg-gray-900 disabled:opacity-40"
             >
-                {reflectionLoading ? (
-                    <span className="flex items-center justify-center gap-2">
-                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                        </svg>
-                        Generating feedback...
-                    </span>
-                ) : 'Get feedback →'}
+              {reflectionLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  Generating feedback...
+                </span>
+              ) : 'Get feedback →'}
             </button>
 
-{reflectionLoading && (
-  <div className="mt-3 space-y-2">
-    <div className="w-full bg-gray-200 rounded-full h-1.5">
-      <div className="bg-[#2d6a4f] h-1.5 rounded-full animate-pulse" style={{ width: '70%' }} />
-    </div>
-    <p className="text-xs text-gray-400 text-center">
-      Evaluating your reflection against the EMCC framework...
-    </p>
-  </div>
-)}
+            {reflectionLoading && (
+              <div className="mt-3 space-y-2">
+                <div className="w-full bg-gray-200 rounded-full h-1.5">
+                  <div className="bg-[#2d6a4f] h-1.5 rounded-full animate-pulse" style={{ width: '70%' }} />
+                </div>
+                <p className="text-xs text-gray-400 text-center">
+                  Evaluating your reflection against the EMCC framework...
+                </p>
+              </div>
+            )}
 
             {reflectionReport && (
-             <a 
+            <a  
                 href={reflectionReport}
                 target="_blank"
                 rel="noopener noreferrer"

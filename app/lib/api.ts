@@ -46,7 +46,6 @@ export async function createSession(payload: {
 }
 
 export async function evaluateReflection(payload: {
-  competency: string
   reflection_text: string
   email?: string
   candidate_name?: string
