@@ -21,7 +21,9 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      window.location.href = '/dashboard'
+      const params = new URLSearchParams(window.location.search)
+      const redirect = params.get('redirect') || '/dashboard'
+      window.location.href = redirect
     }
   }
 

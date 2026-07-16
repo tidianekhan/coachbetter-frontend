@@ -28,7 +28,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) window.location.href = '/login'
+      if (!session) {
+        window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`
+      }
     })
   }, [])
 

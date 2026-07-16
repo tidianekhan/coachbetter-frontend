@@ -24,6 +24,14 @@ export default function AdminPanel() {
   const [creating, setCreating] = useState(false)
   const [inviteSent, setInviteSent] = useState('')
 
+  useEffect(() => {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (!session) {
+      window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`
+    }
+  })
+}, [])
+
   async function fetchData(t: Tab) {
     setLoading(true)
     setError('')
