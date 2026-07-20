@@ -11,7 +11,7 @@ async function getAuthHeaders() {
   return { 'Authorization': `Bearer ${session.access_token}` }
 }
 
-type Tab = 'users' | 'reports' | 'sessions'
+type Tab = 'users' | 'reports' | 'sessions' | 'prompt-settings'
 
 export default function AdminPanel() {
   const [tab, setTab] = useState<Tab>('users')
@@ -24,15 +24,23 @@ export default function AdminPanel() {
   const [creating, setCreating] = useState(false)
   const [inviteSent, setInviteSent] = useState('')
 
-  useEffect(() => {
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (!session) {
-      window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`
-    }
+  const [promptSettings, setPromptSettings] = useState({
+    general_instructions: '',
+    assessment_criteria: '',
+    report_structure: '',
   })
-}, [])
+  const [promptSaving, setPromptSaving] = useState(false)
+  const [promptSaved, setPromptSaved] = useState(false)
 
-  async function fetchData(t: Tab) {
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`
+      }
+    })
+  }, [])
+
+  async function fetchData(t: 'users' | 'reports' | 'sessions') {
     setLoading(true)
     setError('')
     try {
@@ -50,7 +58,66 @@ export default function AdminPanel() {
     }
   }
 
-  useEffect(() => { fetchData(tab) }, [tab])
+  async function fetchPromptSettings() {
+    setLoading(true)
+    setError('')
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch(`${API_URL}/admin/prompt-settings`, { headers })
+      if (!res.ok) throw new Error('Failed to fetch prompt settings')
+      const data = await res.json()
+      setPromptSettings({
+        general_instructions: data.general_instructions || '',
+        assessment_criteria: data.assessment_criteria || '',
+        report_structure: data.report_structure || '',
+      })
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load prompt settings')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (tab === 'prompt-settings') {
+      fetchPromptSettings()
+    } else {
+      fetchData(tab as 'users' | 'reports' | 'sessions')
+    }
+  }, [tab])
+
+  async function savePromptSettings() {
+    setPromptSaving(true)
+    setPromptSaved(false)
+    setError('')
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch(`${API_URL}/admin/prompt-settings`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(promptSettings),
+      })
+      if (!res.ok) throw new Error('Failed to save')
+      setPromptSaved(true)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save prompt settings')
+    } finally {
+      setPromptSaving(false)
+    }
+  }
+
+  async function resetPromptSettings() {
+    if (!confirm('Reset to default prompt? This will overwrite your current settings.')) return
+    setError('')
+    try {
+      const headers = await getAuthHeaders()
+      await fetch(`${API_URL}/admin/prompt-settings/reset`, { method: 'POST', headers })
+      fetchPromptSettings()
+      setPromptSaved(false)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to reset')
+    }
+  }
 
   async function handleCreateUser() {
     if (!newEmail) return
@@ -85,6 +152,13 @@ export default function AdminPanel() {
     }
   }
 
+  const tabLabels: Record<Tab, string> = {
+    users: 'Users',
+    reports: 'Reports',
+    sessions: 'Sessions',
+    'prompt-settings': 'Prompt settings',
+  }
+
   return (
     <div className="min-h-screen bg-[#f8f7f2]">
       <nav className="flex items-center justify-between px-8 py-4 border-b border-gray-200 bg-white">
@@ -103,15 +177,15 @@ export default function AdminPanel() {
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Admin Panel</h1>
 
         <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
-          {(['users', 'reports', 'sessions'] as Tab[]).map(t => (
+          {(Object.keys(tabLabels) as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-all ${
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
                 tab === t ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'
               }`}
             >
-              {t}
+              {tabLabels[t]}
             </button>
           ))}
         </div>
@@ -197,12 +271,7 @@ export default function AdminPanel() {
                     <td className="px-4 py-3 text-gray-500">{r.session_id ? 'Session' : 'Reflection'}</td>
                     <td className="px-4 py-3 text-right">
                       {r.pdf_url && (
-                        <a
-                          href={r.pdf_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-500 hover:text-blue-700"
-                        >
+                        <a href={r.pdf_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:text-blue-700">
                           View PDF
                         </a>
                       )}
@@ -241,12 +310,7 @@ export default function AdminPanel() {
                     <td className="px-4 py-3 text-gray-500">{new Date(s.created_at).toLocaleDateString('nl-NL')}</td>
                     <td className="px-4 py-3 text-right">
                       {s.report_url && (
-                        <a
-                          href={s.report_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-500 hover:text-blue-700"
-                        >
+                        <a href={s.report_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:text-blue-700">
                           View PDF
                         </a>
                       )}
@@ -255,6 +319,62 @@ export default function AdminPanel() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {tab === 'prompt-settings' && (
+          <div className="space-y-6">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800">
+              Changes are saved to the database and applied immediately to new reports. The original default prompt is always available via Reset.
+            </div>
+
+            {[
+              {
+                key: 'general_instructions',
+                label: 'General AI instructions',
+                description: 'Tone, language, and general behaviour of the AI supervisor.',
+              },
+              {
+                key: 'assessment_criteria',
+                label: 'Assessment criteria and rubrics',
+                description: 'EMCC competencies, VI indicators, and level calibration rules.',
+              },
+              {
+                key: 'report_structure',
+                label: 'Report structure and instructions',
+                description: 'Supervisory rules, output structure, and quality checklist.',
+              },
+            ].map(({ key, label, description }) => (
+              <div key={key} className="bg-white rounded-xl border border-gray-200 p-6">
+                <h2 className="text-sm font-semibold text-gray-700 mb-1">{label}</h2>
+                <p className="text-xs text-gray-400 mb-3">{description}</p>
+                <textarea
+                  value={promptSettings[key as keyof typeof promptSettings]}
+                  onChange={e => setPromptSettings(prev => ({ ...prev, [key]: e.target.value }))}
+                  rows={14}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono text-gray-900 resize-y"
+                />
+              </div>
+            ))}
+
+            <div className="flex items-center gap-4">
+              <button
+                onClick={savePromptSettings}
+                disabled={promptSaving}
+                className="bg-black text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-40"
+              >
+                {promptSaving ? 'Saving...' : 'Save settings'}
+              </button>
+              <button
+                onClick={resetPromptSettings}
+                className="text-sm text-gray-400 hover:text-gray-600"
+              >
+                Reset to default
+              </button>
+              {promptSaved && (
+                <p className="text-sm text-green-600">Saved — applied to new reports immediately.</p>
+              )}
+            </div>
           </div>
         )}
       </main>
