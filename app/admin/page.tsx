@@ -32,6 +32,8 @@ export default function AdminPanel() {
   const [promptSaving, setPromptSaving] = useState(false)
   const [promptSaved, setPromptSaved] = useState(false)
 
+  const [modal, setModal] = useState<{ title: string; content: string } | null>(null)
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
@@ -152,6 +154,40 @@ export default function AdminPanel() {
     }
   }
 
+  async function viewReflectionInput(reportId: string) {
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch(`${API_URL}/admin/reflections`, { headers })
+      const data = await res.json()
+      const reflection = data.reflections.find((r: any) =>
+        reports.find(rep => rep.reflection_id === r.id && rep.id === reportId)
+      )
+      if (reflection?.reflection_text) {
+        setModal({ title: 'Ingediende reflectie', content: reflection.reflection_text })
+      } else {
+        setModal({ title: 'Ingediende reflectie', content: 'Geen tekst beschikbaar.' })
+      }
+    } catch {
+      setModal({ title: 'Fout', content: 'Kon de reflectietekst niet laden.' })
+    }
+  }
+
+  async function viewSessionTranscript(sessionId: string) {
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch(`${API_URL}/admin/sessions`, { headers })
+      const data = await res.json()
+      const session = data.sessions.find((s: any) => s.id === sessionId)
+      if (session?.transcript) {
+        setModal({ title: 'Transcript', content: session.transcript })
+      } else {
+        setModal({ title: 'Transcript', content: 'Geen transcript beschikbaar.' })
+      }
+    } catch {
+      setModal({ title: 'Fout', content: 'Kon het transcript niet laden.' })
+    }
+  }
+
   const tabLabels: Record<Tab, string> = {
     users: 'Users',
     reports: 'Reports',
@@ -161,6 +197,28 @@ export default function AdminPanel() {
 
   return (
     <div className="min-h-screen bg-[#f8f7f2]">
+      {/* Modal */}
+      {modal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-900">{modal.title}</h2>
+              <button
+                onClick={() => setModal(null)}
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="overflow-y-auto px-6 py-4">
+              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                {modal.content}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <nav className="flex items-center justify-between px-8 py-4 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-black rounded-md flex items-center justify-center">
@@ -269,9 +327,22 @@ export default function AdminPanel() {
                     <td className="px-4 py-3 text-gray-500 font-mono text-xs">{r.user_id?.slice(0, 8)}...</td>
                     <td className="px-4 py-3 text-gray-500">{new Date(r.created_at).toLocaleDateString('nl-NL')}</td>
                     <td className="px-4 py-3 text-gray-500">{r.session_id ? 'Session' : 'Reflection'}</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right flex items-center justify-end gap-3">
+                      {!r.session_id && (
+                        <button
+                          onClick={() => viewReflectionInput(r.id)}
+                          className="text-xs text-gray-400 hover:text-gray-700"
+                        >
+                          View input
+                        </button>
+                      )}
                       {r.pdf_url && (
-                        <a href={r.pdf_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:text-blue-700">
+                        <a
+                          href={r.pdf_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:text-blue-700"
+                        >
                           View PDF
                         </a>
                       )}
@@ -308,9 +379,22 @@ export default function AdminPanel() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500">{new Date(s.created_at).toLocaleDateString('nl-NL')}</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right flex items-center justify-end gap-3">
+                      {s.transcript && (
+                        <button
+                          onClick={() => viewSessionTranscript(s.id)}
+                          className="text-xs text-gray-400 hover:text-gray-700"
+                        >
+                          View transcript
+                        </button>
+                      )}
                       {s.report_url && (
-                        <a href={s.report_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:text-blue-700">
+                        <a
+                          href={s.report_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:text-blue-700"
+                        >
                           View PDF
                         </a>
                       )}
